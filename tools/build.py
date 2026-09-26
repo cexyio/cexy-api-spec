@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""Build the SDK spec: allowlist (surface.yaml) intersected with the served public spec.
+
+    python tools/build.py            # writes spec/openapi.sdk.json (uses the cached public spec)
+    python tools/build.py --fetch    # re-fetches the served public spec first
+    python tools/build.py --check    # fails if the committed spec/openapi.sdk.json is out of date
+
+The result keeps only allowlisted operations and the schemas they reach, stamps each
+operation with `x-required-scope` from the allowlist, adds the error envelope and the
+provisional ErrorCode enum (from errors.yaml) until the served spec carries them, and sets
+the production server URL.
+"""
+
+from __future__ import annotations
+
+import copy
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+PUBLIC_URL = "https://api.cexy.io/api/v1/openapi.json"
+# The raw public document is fetched, never committed: it carries text that is not meant for
+# the SDK repos (the built spec strips it). The cache is git-ignored.
+PUBLIC = ROOT / "spec" / ".cache" / "openapi.public.json"
+OUT = ROOT / "spec" / "openapi.sdk.json"
+METHODS = ("get", "put", "post", "delete", "patch")
+SERVER = {"url": "https://api.cexy.io", "description": "CEXY.io production"}
+
+ERROR_SCHEMAS = {
+    "ErrorResponse": {
+        "type": "object",
+        "description": "The error envelope returned by every failing request.",
+        "required": ["error"],
+        "properties": {"error": {"$ref": "#/components/schemas/ErrorBody"}},
+    },
+    "ErrorBody": {
+        "type": "object",
+        "required": ["code", "message", "retryable"],
+        "properties": {
+            "code": {"$ref": "#/components/schemas/ErrorCode"},
+            "message": {"type": "string", "description": "Human-readable; may change. Branch on `code`."},
+            "details": {"type": "object", "additionalProperties": True},
+            "fields": {"type": "object", "additionalProperties": {"type": "string"}},
+            "request_id": {"type": "string", "nullable": True},
+            "retryable": {"type": "boolean"},
+        },
+    },
+}
+
+
+def load_surface() -> dict[str, Any]:
+    return yaml.safe_load((ROOT / "surface.yaml").read_text())
+
+
+def load_error_codes() -> list[str]:
+    return yaml.safe_load((ROOT / "errors.yaml").read_text())["codes"]
+
+
+def refs(node: Any, found: set[str]) -> None:
+    if isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+            found.add(ref.rsplit("/", 1)[1])
+        for v in node.values():
+            refs(v, found)
+    elif isinstance(node, list):
+        for v in node:
+            refs(v, found)
+
+
+def build(public: dict[str, Any], surface: dict[str, Any], error_codes: list[str]) -> dict[str, Any]:
+    allowed = {(o["method"].lower(), o["path"]): o for o in surface["operations"]}
+    paths: dict[str, Any] = {}
+    for path, item in public["paths"].items():
+        for method in METHODS:
+            op = item.get(method)
+            if op is None or (method, path) not in allowed:
+                continue
+            entry = allowed[(method, path)]
+            op = copy.deepcopy(op)
+            op["x-required-scope"] = entry["scope"]
+            if entry.get("side_effect"):
+                op["x-side-effect"] = entry["side_effect"]
+            if entry["auth"] == "api_key":
+                # API keys only: sessions (Bearer) belong to the web app, not to SDK users.
+                op["security"] = [{"api_key": [], "api_secret": []}]
+            else:
+                op["security"] = []
+            new_item = paths.setdefault(path, {k: v for k, v in item.items() if k not in METHODS})
+            new_item[method] = op
+
+    doc = {k: v for k, v in public.items() if k not in ("paths", "components", "servers")}
+    doc["info"] = {**public.get("info", {}), "title": "CEXY API",
+                   "license": {"name": "MIT", "url": "https://opensource.org/license/mit"}}
+    doc["servers"] = [SERVER]
+    doc["paths"] = paths
+    all_schemas = dict(public.get("components", {}).get("schemas", {}))
+    all_schemas.update({k: v for k, v in ERROR_SCHEMAS.items() if k not in all_schemas})
+    if "ErrorCode" not in all_schemas:
+        all_schemas["ErrorCode"] = {"type": "string", "enum": error_codes,
+                                    "description": "PROVISIONAL (errors.yaml) until the served spec includes it."}
+
+    needed: set[str] = {"ErrorResponse", "ErrorBody", "ErrorCode"}
+    refs(paths, needed)
+    frontier = list(needed)
+    while frontier:
+        name = frontier.pop()
+        found: set[str] = set()
+        refs(all_schemas.get(name, {}), found)
+        for f in found - needed:
+            needed.add(f)
+            frontier.append(f)
+    schemes = public.get("components", {}).get("securitySchemes", {})
+    doc["components"] = {
+        "schemas": {k: all_schemas[k] for k in sorted(needed) if k in all_schemas},
+        "securitySchemes": {k: v for k, v in schemes.items() if k in ("api_key", "api_secret")},
+    }
+    return apply_overrides(sanitize(doc))
+
+
+def _pointer_parts(pointer: str) -> list[str]:
+    return [p.replace("~1", "/").replace("~0", "~") for p in pointer.lstrip("/").split("/")]
+
+
+def apply_overrides(doc: dict[str, Any]) -> dict[str, Any]:
+    """Apply description-overrides.yaml: confirmed corrections awaiting the backend's spec fix."""
+    path = ROOT / "description-overrides.yaml"
+    if not path.exists():
+        return doc
+    for o in yaml.safe_load(path.read_text()).get("overrides") or []:
+        *parents, key = _pointer_parts(o["pointer"])
+        node: Any = doc
+        for p in parents:
+            node = node.get(p) if isinstance(node, dict) else None
+            if node is None:
+                break
+        if not isinstance(node, dict):
+            print(f"note: override target {o['pointer']} not found (stale override?)", file=sys.stderr)
+            continue
+        if not str(node.get(key, "")).startswith(o["upstream_starts_with"]):
+            print(f"note: upstream text at {o['pointer']} changed; review this override", file=sys.stderr)
+        node[key] = o["text"]
+    return doc
+
+
+# Implementation notes that belong in the exchange's own docs, not in public SDKs.
+INTERNAL_NOTE = re.compile(r"legacy|finding S\d+|ambiguity A\d+|docs/[\w./-]+\.md|\.rs\b|\bworker\b|§\d",
+                           re.IGNORECASE)
+
+
+def _clean_text(text: str) -> str:
+    """Drop sentences that are implementation history rather than API behaviour."""
+    paragraphs = []
+    for para in text.split("\n\n"):
+        if para.lstrip().startswith(("*", "-", "|", "`")):
+            # A list: keep or drop whole items (an item runs until the next bullet line).
+            items: list[list[str]] = []
+            for ln in para.split("\n"):
+                if ln.lstrip().startswith(("* ", "- ", "|")) or not items:
+                    items.append([ln])
+                else:
+                    items[-1].append(ln)
+            kept_items = ["\n".join(it) for it in items if not INTERNAL_NOTE.search(" ".join(it))]
+            if kept_items:
+                paragraphs.append("\n".join(kept_items))
+            continue
+        sentences = re.split(r"(?<=[.!?])\s+", para.replace("\n", " "))
+        kept = [x for x in sentences if not INTERNAL_NOTE.search(x)]
+        if kept:
+            paragraphs.append(" ".join(kept))
+    return "\n\n".join(paragraphs).strip()
+
+
+def sanitize(node: Any) -> Any:
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            if k in ("description", "summary") and isinstance(v, str):
+                cleaned = _clean_text(v)
+                if cleaned:
+                    out[k] = cleaned
+            else:
+                out[k] = sanitize(v)
+        return out
+    if isinstance(node, list):
+        return [sanitize(v) for v in node]
+    return node
+
+
+def render(doc: dict[str, Any]) -> str:
+    return json.dumps(doc, indent=2) + "\n"
+
+
+def fetch_public(force: bool = False) -> dict[str, Any]:
+    """The served public spec, from the git-ignored cache or fetched (public, unauthenticated)."""
+    if force or not PUBLIC.exists():
+        import urllib.request
+
+        req = urllib.request.Request(PUBLIC_URL, headers={"User-Agent": "cexy-api-spec-build/1 (+https://cexy.io)",
+                                                           "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (fixed https URL)
+            body = resp.read()
+        PUBLIC.parent.mkdir(parents=True, exist_ok=True)
+        PUBLIC.write_bytes(body)
+    return json.loads(PUBLIC.read_text())
+
+
+def main() -> int:
+    public = fetch_public(force="--fetch" in sys.argv)
+    text = render(build(public, load_surface(), load_error_codes()))
+    if "--check" in sys.argv:
+        if not OUT.exists() or OUT.read_text() != text:
+            print("spec/openapi.sdk.json is out of date: run python tools/build.py", file=sys.stderr)
+            return 1
+        print("spec/openapi.sdk.json is up to date")
+        return 0
+    OUT.write_text(text)
+    doc = json.loads(text)
+    ops = sum(1 for item in doc["paths"].values() for m in METHODS if m in item)
+    print(f"wrote {OUT.relative_to(ROOT)}: {ops} operations, {len(doc['components']['schemas'])} schemas")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,80 @@
+# SDK surface: the only operations the CEXY SDKs and MCP server expose.
+#
+# The published SDK spec is this allowlist intersected with the served public spec.
+# `scope` is authoritative here (the spec does not state scopes yet; once it carries
+# x-required-scope, CI fails if the two disagree). Every change to this file is reviewed
+# by QA.
+#
+# auth:  none | api_key
+# scope: -    | read | trade
+
+operations:
+  # Public market data (no auth)
+  - {method: GET, path: /api/v1/time, auth: none, scope: "-"}
+  - {method: GET, path: /api/v1/config, auth: none, scope: "-"}
+  - {method: GET, path: /api/v1/fees, auth: none, scope: "-"}
+  - {method: GET, path: /api/v1/assets, auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/assets/{symbol}", auth: none, scope: "-"}
+  - {method: GET, path: /api/v1/networks, auth: none, scope: "-"}
+  - {method: GET, path: /api/v1/markets, auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/markets/{symbol}", auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/markets/{symbol}/orderbook", auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/markets/{symbol}/trades", auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/markets/{symbol}/candles", auth: none, scope: "-"}
+  - {method: GET, path: /api/v1/pools, auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/pools/{symbol}", auth: none, scope: "-"}
+
+  # Account (read)
+  - {method: GET, path: /api/v1/account/balances, auth: api_key, scope: read}
+  - {method: GET, path: "/api/v1/account/balances/{asset}", auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/account/ledger, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/account/notifications, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/account/sub-accounts, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/account/api-keys, auth: api_key, scope: read}
+
+  # Exports (read)
+  - {method: GET, path: /api/v1/exports/deposits, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/exports/ledger, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/exports/orders, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/exports/trades, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/exports/withdrawals, auth: api_key, scope: read}
+
+  # Wallet (read). Note: GET deposit-address CREATES an address on first call.
+  - {method: GET, path: /api/v1/wallet/deposits, auth: api_key, scope: read}
+  - {method: GET, path: "/api/v1/wallet/deposits/{deposit_id}", auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/wallet/withdrawals, auth: api_key, scope: read}
+  - {method: GET, path: "/api/v1/wallet/withdrawals/{withdrawal_id}", auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/wallet/withdrawal-addresses, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/wallet/deposit-address, auth: api_key, scope: read, side_effect: creates_address}
+
+  # Trading
+  - {method: GET, path: /api/v1/trading/orders, auth: api_key, scope: read}
+  - {method: GET, path: "/api/v1/trading/orders/{order_id}", auth: api_key, scope: read}
+  - {method: GET, path: "/api/v1/trading/orders/by-client-id/{client_order_id}", auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/trading/orders/history, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/trading/trades, auth: api_key, scope: read}
+  - {method: POST, path: /api/v1/trading/orders, auth: api_key, scope: trade}
+  - {method: DELETE, path: "/api/v1/trading/orders/{order_id}", auth: api_key, scope: trade}
+  - {method: POST, path: /api/v1/trading/orders/cancel-all, auth: api_key, scope: trade}
+
+  # Liquidity pools (trade). In the SDKs; never in the MCP server.
+  - {method: POST, path: "/api/v1/pools/{symbol}/join", auth: api_key, scope: trade}
+  - {method: POST, path: "/api/v1/pools/{symbol}/exit", auth: api_key, scope: trade}
+
+# Never exposed, even if added above by mistake.
+deny:
+  # Any path with an "admin" segment is denied.
+  path_segments:
+    - admin
+  path_prefixes:
+    - /api/v1/auth
+    - /api/v1/futures
+    - /api/v1/support
+    - /api/v1/listings
+    - /health
+    - /api/v1/udf
+    - /api/v1/cg
+    - /api/v1/cmc
+  parameters:
+    - X-Two-Factor-Code
+  schema_name_pattern: "(?i)admin|operator|internal"
