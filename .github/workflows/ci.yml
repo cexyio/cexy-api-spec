@@ -2,8 +2,6 @@ name: ci
 on:
   push: {branches: [main]}
   pull_request:
-  schedule:
-    - cron: "0 5 * * 1"   # weekly: detect changes in the served public spec
 permissions:
   contents: read
 jobs:
@@ -15,7 +13,7 @@ jobs:
         with: {python-version: "3.12"}
       - run: pip install pyyaml==6.0.2
       - name: Fetch the served public spec (not committed)
-        run: python tools/build.py --fetch && git diff --exit-code spec/openapi.sdk.json
+        run: python tools/build.py --fetch && git diff --exit-code spec/openapi.sdk.json errors.yaml
       - name: Surface guard (fail closed)
         run: python tools/check.py
       - name: No internal references

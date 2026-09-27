@@ -19,6 +19,8 @@ python tools/check.py          # surface guard (fails closed)
 python tools/scan_internal.py  # no internal hostnames, IPs or paths (plus local patterns, see the script)
 ```
 
+**Spec drift:** a weekly job (`.github/workflows/spec-drift.yml`, also runnable by hand) compares the served spec with the committed one, and on any difference opens or updates one issue labelled `spec-drift`. The issue summarises added or removed operations, changed schemas, new error codes, and API-key operations that are not on the allowlist. The update itself is a normal reviewed PR, with the SDK sync PRs in the same round. Dependabot proposes GitHub Actions updates weekly.
+
 `tools/check.py` fails when:
 - an allowlisted operation disappears from the public spec;
 - the public spec gains an API-key operation that is not allowlisted (it must be reviewed first);
