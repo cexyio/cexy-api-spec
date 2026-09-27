@@ -1,22 +1,5 @@
 # Temporary corrections to description text in the served spec, applied by tools/build.py.
-# Each entry is confirmed by the exchange and awaits the backend's spec-cleanup release.
-# When the served text changes, the build prints a note so the stale entry can be removed.
-overrides:
-  - pointer: /components/schemas/PlaceOrderRequest/description
-    upstream_starts_with: "Places an order."
-    text: |-
-      Places an order.
-
-      Set `client_order_id` to make a retry safe: it is unique per account, a repeated id is refused before any funds move, and the order can be recovered with GET /api/v1/trading/orders/by-client-id/{client_order_id}. `Idempotency-Key` has no effect on this endpoint.
-  - pointer: /paths/~1api~1v1~1trading~1orders/post/description
-    upstream_starts_with: "Funds are reserved before the order reaches the book"
-    text: |-
-      Funds are reserved before the order reaches the book, so a matched order can never be unfunded. On a buy the reservation covers the value plus the **taker** fee, which is the worst case; a maker fill releases the difference.
-
-      Set `client_order_id` to make a retry safe (a repeated id is refused before funds move). `Idempotency-Key` has no effect on this endpoint.
-  - pointer: /components/schemas/OrderBookResponse/properties/sequence/description
-    upstream_starts_with: "The realtime sequence this snapshot is current as of."
-    text: |-
-      The realtime sequence this snapshot is current as of.
-
-      To synchronise with the `orderbook:{symbol}` WebSocket channel: subscribe first, fetch this snapshot, and ignore updates whose `sequence` is at or below this value. Every update carries the complete top 50 levels of both sides and replaces the previous state (there are no deltas). A gap in `sequence` only means the book was briefly stale; the next update is complete.
+# Add an entry only for a correction confirmed by the exchange that is awaiting a backend spec
+# release; remove it once the served text is fixed (the build prints a note when it changes).
+# The three earlier entries were removed with spec release dc95b3d, which fixed the text upstream.
+overrides: []
