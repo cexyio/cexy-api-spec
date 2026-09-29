@@ -34,7 +34,17 @@ def main() -> int:
     new_errors = build.render_errors(public)
     old_errors = build.ERRORS.read_text()
 
-    if new_sdk == old_sdk and (new_errors is None or new_errors == old_errors):
+    public_key_ops = {(m.upper(), p) for p, item in public["paths"].items() for m in METHODS
+                      if (op := item.get(m)) and any("api_key" in s for s in op.get("security") or [])}
+    allowed = {(o["method"].upper(), o["path"]) for o in build.load_surface()["operations"]}
+    unlisted = sorted(public_key_ops - allowed)
+    deny = build.load_surface().get("deny") or {}
+    denied_segments = set(deny.get("path_segments") or [])
+    # New API-key operations that are neither allowlisted nor denied need a decision, even when
+    # the SDK spec itself did not change (the allowlist hides them from it).
+    undecided = [(m, p) for m, p in unlisted if not (set(p.strip("/").split("/")) & denied_segments)]
+
+    if new_sdk == old_sdk and (new_errors is None or new_errors == old_errors) and not undecided:
         print("no drift")
         return 0
 
@@ -57,13 +67,9 @@ def main() -> int:
     if info_old != info_new:
         lines.append(f"- **info.version:** {info_old} → {info_new}")
 
-    public_key_ops = {(m.upper(), p) for p, item in public["paths"].items() for m in METHODS
-                      if (op := item.get(m)) and any("api_key" in s for s in op.get("security") or [])}
-    allowed = {(o["method"].upper(), o["path"]) for o in build.load_surface()["operations"]}
-    unlisted = sorted(public_key_ops - allowed)
-    if unlisted:
-        lines.append(f"- **API-key operations not on the allowlist (review before adding):** "
-                     + ", ".join(f"`{m} {p}`" for m, p in unlisted[:20]))
+    if undecided:
+        lines.append(f"- **API-key operations neither allowlisted nor denied (decide: add to surface.yaml or "
+                     f"deny):** " + ", ".join(f"`{m} {p}`" for m, p in undecided[:20]))
 
     check = subprocess.run([sys.executable, str(ROOT / "tools" / "check.py")], capture_output=True, text=True)
     lines += ["", f"`tools/check.py` against the committed SDK spec: exit {check.returncode}"]
