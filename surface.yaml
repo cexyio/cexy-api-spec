@@ -30,6 +30,7 @@ operations:
   - {method: GET, path: /api/v1/account/ledger, auth: api_key, scope: read}
   - {method: GET, path: /api/v1/account/notifications, auth: api_key, scope: read}
   - {method: GET, path: /api/v1/account/sub-accounts, auth: api_key, scope: read}
+  - {method: GET, path: "/api/v1/account/sub-accounts/{id}/balances", auth: api_key, scope: read}
   - {method: GET, path: /api/v1/account/api-keys, auth: api_key, scope: read}
 
   # Exports (read)
