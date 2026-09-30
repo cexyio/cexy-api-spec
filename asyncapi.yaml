@@ -68,10 +68,21 @@ info:
     may be missing. Shared client cases: conformance/ws/live_balances.json and
     conformance/ws/private_sequence_gap.json.
 
-    The `deposits` and `withdrawals` channels currently carry only changes made through the API
-    (a withdrawal requested, cancelled, approved, rejected or released). A deposit being credited,
-    or a withdrawal being broadcast or confirmed on chain, produces no frame on those channels;
-    poll the REST lists for those states. The balance change itself arrives on `balances`.
+    Until Release 2, the `deposits` and `withdrawals` channels carry only changes made through the
+    API (a withdrawal requested, cancelled, approved, rejected or released). A deposit being
+    credited, or a withdrawal being broadcast or confirmed on chain, produces no frame on those
+    channels; poll the REST lists for those states. The balance change itself arrives on
+    `balances`. From Release 2 those changes arrive too (one publisher per topic), and
+    `deposits.resync` / `withdrawals.resync` (data `{}`, no frame sequence) mean "refetch that
+    list".
+
+    Server sign-out (Release 2). `{"type":"signed_out","reason":"expired"|"revoked"}` (no id,
+    channel or sequence) is sent when this connection's access token expired more than 30 s ago
+    without a new `auth`, or when a periodic check finds its session revoked. Private
+    subscriptions are gone; public subscriptions and the socket stay, and a fresh `auth` on the same
+    socket is accepted (then re-subscribe the private channels). The reason set may grow: treat any
+    value as a sign-out. Re-send `auth` on every token refresh: that keeps the subscriptions and
+    resets the expiry timer. Shared client cases: conformance/ws/server_signout.json.
   license:
     name: MIT
 servers:
@@ -195,7 +206,8 @@ components:
             type: string
             enum: [ticker.update, orderbook.update, trade.new, market.status, order.created, order.updated,
                    order.cancelled, order.filled, balance.updated, deposit.detected, deposit.updated,
-                   deposit.completed, withdrawal.updated, session.revoked, balances.resync]
+                   deposit.completed, withdrawal.updated, session.revoked, balances.resync,
+                   deposits.resync, withdrawals.resync]
             description: Ignore unknown event types (additive changes do not bump protocol_version).
           channel: {type: string}
           sequence: {type: integer, description: "Public channels: per channel, +1 per update, resets on server restart. Private channels: per topic (see the description above). balances.resync has none."}
