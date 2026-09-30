@@ -12,3 +12,6 @@ keywords = ["ak_"]
 [allowlist]
 description = "Placeholders used in docs, examples and tests"
 regexes = ['''ak_your_key_here''', '''ak_test_key''', '''your_secret_here''', '''test_secret''']
+# Signing test vectors: fixed test constants from the server's generator, pinned by SHA-256 in
+# conformance/signing/SOURCE.md. Only this exact file is exempt.
+paths = ['''^conformance/signing/vectors\.json$''']
