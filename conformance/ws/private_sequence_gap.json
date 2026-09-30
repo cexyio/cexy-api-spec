@@ -1,5 +1,5 @@
 {
-  "description": "Frame-sequence gap detection on private channels in the plain WebSocket client (no helper), with the client option reorder_window_ms from the case. Same step kinds as private_signout.json plus {\"wait_ms\": n}. Tracked events: sequence_gap {channel, expected, received} and resync {reason: \"sequence_gap\"} (both once per gap). The first frame after subscribed is the baseline; a number lower than expected is late or duplicate (never a gap); a higher number is a gap only if the missing numbers have not all arrived within reorder_window_ms; after a gap the next expected number is received + 1. Frames without a sequence are ignored.",
+  "description": "Frame-sequence gap detection on private channels in the plain WebSocket client (no helper), with the client option reorder_window_ms from the case. Same step kinds as private_signout.json plus {\"advance_ms\": n}: advance the client's test clock by n ms and run every timer that falls due (the reorder window); SDKs inject this clock for tests, so no case depends on real time. Tracked events: sequence_gap {channel, expected, received} and resync {reason: \"sequence_gap\"} (both once per gap). The first frame after subscribed is the baseline; a number lower than expected is late or duplicate (never a gap); a higher number is a gap only if the missing numbers have not all arrived within reorder_window_ms; after a gap the next expected number is received + 1. Frames without a sequence are ignored.",
   "cases": [
     {
       "id": "swap_filled_in_window",
@@ -89,7 +89,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_events": []
@@ -162,7 +162,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_events": [
@@ -201,7 +201,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_events": []
@@ -294,7 +294,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_events": [

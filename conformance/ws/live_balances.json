@@ -1,5 +1,5 @@
 {
-  "description": "LiveBalances helper (TS ws.liveBalances(), Python ws.live_balances(), Go ws.LiveBalances, Rust ws.live_balances) against a scripted server, same step kinds as private_signout.json plus: {\"client\": \"live_balances\"} starts the helper with the case's options (reorder_window_ms, min_snapshot_interval_ms) and with two injected sources that the script answers: {\"owner\": ID} waits (up to 2 s) until the helper has an unanswered owner-id request and resolves it (the REST account id, GET /api/v1/account/id), {\"snapshot\": [rows]} does the same for its balances snapshot request (GET /api/v1/account/balances rows). {\"expect_requests\": {\"owner\": n, \"snapshot\": n}} counts the requests the helper has made so far (checked after the client has processed everything sent before); {\"expect_state\": {asset: {total, sequence}}} compares the helper's rows exactly (the asset set must match; only the fields given are compared); {\"expect_stale\": bool}; {\"expect_errors\": [codes]} compares the helper error codes emitted since the previous expect_errors (empty list: none); {\"wait_ms\": n} waits in real time. Rules: start = subscribe balances, wait for subscribed, fetch the owner id and compare it with the WS authenticated user_id (mismatch: error ACCOUNT_MISMATCH, stale, no snapshot, never merge), then fetch a snapshot while buffering events, then apply buffered events newer than it. An event is applied only if data.sequence > the stored sequence for that asset (an unknown asset is added); a total of 0 removes the row and leaves a tombstone with its sequence, and a snapshot row at or below a tombstone's sequence is ignored. Refetch on: a frame-sequence gap on balances (the first frame after subscribed is the baseline; a lower number is late, not lost; a higher number is a gap if the missing numbers do not arrive within reorder_window_ms), balances.resync, CONCURRENT_MODIFICATION with a null id, a reconnect, and authChanged (then re-check the owner after the re-subscribe). Never refetch because data.sequence skipped values. Triggers during a fetch coalesce into one more fetch. A successful snapshot starts min_snapshot_interval_ms before the next may start (trailing). stale is true from a trigger until the next snapshot is applied.",
+  "description": "LiveBalances helper (TS ws.liveBalances(), Python ws.live_balances(), Go ws.LiveBalances, Rust ws.live_balances) against a scripted server, same step kinds as private_signout.json plus: {\"client\": \"live_balances\"} starts the helper with the case's options (reorder_window_ms, min_snapshot_interval_ms) and with two injected sources that the script answers: {\"owner\": ID} waits (up to 2 s) until the helper has an unanswered owner-id request and resolves it (the REST account id, GET /api/v1/account/id), {\"snapshot\": [rows]} does the same for its balances snapshot request (GET /api/v1/account/balances rows). {\"expect_requests\": {\"owner\": n, \"snapshot\": n}} counts the requests the helper has made so far (checked after the client has processed everything sent before); {\"expect_state\": {asset: {total, sequence}}} compares the helper's rows exactly (the asset set must match; only the fields given are compared); {\"expect_stale\": bool}; {\"expect_errors\": [codes]} compares the helper error codes emitted since the previous expect_errors (empty list: none); {\"advance_ms\": n} advances the client's test clock by n ms and runs every timer that falls due (the reorder window, the minimum snapshot interval, retry backoff); SDKs inject this clock for tests, so no case depends on real time. Real network I/O is unaffected. Rules: start = subscribe balances, wait for subscribed, fetch the owner id and compare it with the WS authenticated user_id (mismatch: error ACCOUNT_MISMATCH, stale, no snapshot, never merge), then fetch a snapshot while buffering events, then apply buffered events newer than it. An event is applied only if data.sequence > the stored sequence for that asset (an unknown asset is added); a total of 0 removes the row and leaves a tombstone with its sequence, and a snapshot row at or below a tombstone's sequence is ignored. Refetch on: a frame-sequence gap on balances (the first frame after subscribed is the baseline; a lower number is late, not lost; a higher number is a gap if the missing numbers do not arrive within reorder_window_ms), balances.resync, CONCURRENT_MODIFICATION with a null id, a reconnect, and authChanged (then re-check the owner after the re-subscribe). Never refetch because data.sequence skipped values. Triggers during a fetch coalesce into one more fetch. A successful snapshot starts min_snapshot_interval_ms before the next may start (trailing). stale is true from a trigger until the next snapshot is applied.",
   "cases": [
     {
       "id": "baseline_mid_count",
@@ -118,7 +118,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_requests": {
@@ -257,7 +257,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_requests": {
@@ -408,7 +408,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_requests": {
@@ -547,7 +547,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_requests": {
@@ -878,7 +878,7 @@
           ]
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_requests": {
@@ -1216,7 +1216,7 @@
           ]
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_requests": {
@@ -1362,7 +1362,7 @@
           }
         },
         {
-          "wait_ms": 150
+          "advance_ms": 150
         },
         {
           "expect_requests": {
@@ -1667,7 +1667,7 @@
           }
         },
         {
-          "wait_ms": 50
+          "advance_ms": 50
         },
         {
           "expect_requests": {
@@ -1676,7 +1676,7 @@
           }
         },
         {
-          "wait_ms": 400
+          "advance_ms": 400
         },
         {
           "expect_requests": {
@@ -1762,7 +1762,7 @@
           "owner": "bbbb0002"
         },
         {
-          "wait_ms": 50
+          "advance_ms": 50
         },
         {
           "expect_requests": {
