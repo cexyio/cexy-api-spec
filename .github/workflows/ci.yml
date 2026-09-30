@@ -17,6 +17,8 @@ jobs:
         run: python tools/build.py --fetch && git diff --exit-code spec/openapi.sdk.json errors.yaml
       - name: Surface guard (fail closed)
         run: python tools/check.py
+      - name: Signing vectors match the documented scheme
+        run: python tools/check_signing_vectors.py
       - name: No internal references
         env:
           SCAN_PATTERNS: ${{ secrets.SCAN_PATTERNS }}
