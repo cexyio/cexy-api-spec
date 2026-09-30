@@ -25,6 +25,7 @@ operations:
   - {method: GET, path: "/api/v1/pools/{symbol}", auth: none, scope: "-"}
 
   # Account (read)
+  - {method: GET, path: /api/v1/account/id, auth: api_key, scope: read}
   - {method: GET, path: /api/v1/account/balances, auth: api_key, scope: read}
   - {method: GET, path: "/api/v1/account/balances/{asset}", auth: api_key, scope: read}
   - {method: GET, path: /api/v1/account/ledger, auth: api_key, scope: read}
