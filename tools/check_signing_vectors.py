@@ -11,6 +11,7 @@ def canon_query(q: str) -> str:
     if not q: return ""
     pairs=[]
     for part in q.split("&"):
+        if not part: continue  # empty parts are dropped: "a=1&&b=2&" is "a=1&b=2"
         n,_,v = part.partition("=")
         pairs.append((enc(urllib.parse.unquote_to_bytes(n)), enc(urllib.parse.unquote_to_bytes(v)), "=" in part))
     pairs.sort(key=lambda t:(t[0].encode(),t[1].encode()))
