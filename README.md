@@ -28,14 +28,16 @@ python tools/scan_internal.py  # no internal hostnames, IPs or paths (plus local
 - the spec's `x-required-scope` disagrees with the allowlist;
 - `errors.yaml` disagrees with the spec's `ErrorCode`.
 
-## Authentication, today
+## Authentication
 
-API keys are sent as two headers on every private request: `X-API-Key: ak_…` and `X-API-Secret: …`.
-- Never put them in a URL.
+Every private request is signed with the API key (`CEXY-HMAC-SHA256-v1`): it sends `X-API-Key: ak_…`,
+`X-API-Timestamp`, `X-API-Nonce` and `X-API-Signature`. The secret itself is never sent; the API is
+switching off the old `X-API-Secret` header and refuses it with `SIGNATURE_REQUIRED`. The SDKs sign
+by default. The signing test vectors are in `conformance/signing/`; the live `/api/v1/openapi.json`
+describes the scheme.
+- Never put credentials in a URL.
 - Keys have scopes `read` and/or `trade`, and can be limited to IP addresses (`allowed_ips`).
 - **Keys can never withdraw or transfer funds.**
-
-HMAC request signing is planned before SDK 1.0. SDKs stay at 0.x until then, and signing test vectors will be added to `conformance/`.
 
 ## Retry safety (confirmed by the exchange)
 
