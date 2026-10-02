@@ -99,6 +99,20 @@ def main() -> int:
     if spec_codes and sorted(spec_codes) != sorted(codes):
         problems.append("errors.yaml differs from the ErrorCode enum in the public spec: regenerate it")
 
+    # Every security scheme an operation requires must be defined, and no SDK operation may
+    # require the secret header (the API refuses it with SIGNATURE_REQUIRED).
+    defined = set(sdk.get("components", {}).get("securitySchemes", {}))
+    for path, item in sdk["paths"].items():
+        for method, op in item.items():
+            if not isinstance(op, dict):
+                continue
+            for req in op.get("security", []):
+                for name in req:
+                    if name not in defined:
+                        problems.append(f"{method.upper()} {path}: security scheme '{name}' is not defined")
+                    if name == "api_secret":
+                        problems.append(f"{method.upper()} {path}: requires api_secret, which the API refuses")
+
     if problems:
         print("surface check FAILED:", *problems, sep="\n  - ", file=sys.stderr)
         return 1
