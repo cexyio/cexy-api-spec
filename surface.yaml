@@ -63,6 +63,18 @@ operations:
   - {method: POST, path: "/api/v1/pools/{symbol}/join", auth: api_key, scope: trade}
   - {method: POST, path: "/api/v1/pools/{symbol}/exit", auth: api_key, scope: trade}
 
+  # Futures data (read only; futures trading is off). Session-only futures routes (account,
+  # provision, declaration, transfers) stay denied below.
+  - {method: GET, path: /api/v1/futures/markets, auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/futures/markets/{coin}", auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/futures/markets/{coin}/orderbook", auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/futures/markets/{coin}/candles", auth: none, scope: "-"}
+  - {method: GET, path: "/api/v1/futures/markets/{coin}/trades", auth: none, scope: "-"}
+  - {method: GET, path: /api/v1/futures/positions, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/futures/orders, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/futures/fills, auth: api_key, scope: read}
+  - {method: GET, path: /api/v1/futures/funding, auth: api_key, scope: read}
+
 # Never exposed, even if added above by mistake.
 deny:
   # Any path with an "admin" segment is denied.
@@ -70,7 +82,9 @@ deny:
     - admin
   path_prefixes:
     - /api/v1/auth
-    - /api/v1/futures
+    - /api/v1/futures/account
+    - /api/v1/futures/declaration
+    - /api/v1/futures/transfers
     - /api/v1/support
     - /api/v1/listings
     - /health
