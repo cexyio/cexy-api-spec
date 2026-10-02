@@ -88,8 +88,13 @@ def build(public: dict[str, Any], surface: dict[str, Any], error_codes: list[str
             if entry.get("side_effect"):
                 op["x-side-effect"] = entry["side_effect"]
             if entry["auth"] == "api_key":
-                # API keys only: sessions (Bearer) belong to the web app, not to SDK users.
-                op["security"] = [{"api_key": [], "api_secret": []}]
+                # API keys only: sessions (Bearer) belong to the web app, not to SDK users. The
+                # requirement is copied from the served spec (request signing: key id, timestamp,
+                # nonce and signature), never hard-coded.
+                key_reqs = [r for r in op.get("security", []) if "api_key" in r]
+                if len(key_reqs) != 1:
+                    raise SystemExit(f"{method.upper()} {path}: expected one api_key security requirement, got {key_reqs}")
+                op["security"] = key_reqs
             else:
                 op["security"] = []
             new_item = paths.setdefault(path, {k: v for k, v in item.items() if k not in METHODS})
@@ -117,9 +122,11 @@ def build(public: dict[str, Any], surface: dict[str, Any], error_codes: list[str
             needed.add(f)
             frontier.append(f)
     schemes = public.get("components", {}).get("securitySchemes", {})
+    used_schemes = {name for item in paths.values() for m, op in item.items() if m in METHODS
+                    for req in op.get("security", []) for name in req}
     doc["components"] = {
         "schemas": {k: all_schemas[k] for k in sorted(needed) if k in all_schemas},
-        "securitySchemes": {k: v for k, v in schemes.items() if k in ("api_key", "api_secret")},
+        "securitySchemes": {k: v for k, v in schemes.items() if k in used_schemes},
     }
     return apply_overrides(sanitize(doc))
 
