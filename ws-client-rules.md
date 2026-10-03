@@ -44,15 +44,16 @@ Error frames carry no `details`: back off yourself after `RATE_LIMITED`. A 17th 
 account in one api process is refused `RATE_LIMITED`; REST reads still work.
 
 Private subscriptions (orders, balances, deposits, withdrawals, account) belong to the account
-the connection is authenticated as at that moment. They end, without any frame, in three cases.
+the connection is authenticated as at that moment. They end in three cases.
 (1) An `auth` frame succeeds for a different account: the `authenticated` reply names the new
 user_id, and every private subscription made for the previous account has already ended.
 Authenticating again as the same account, for example with a refreshed token, keeps them.
 (2) An `auth` frame fails for any reason: the error reply is sent, and the connection is no
 longer authenticated; private subscribe requests are refused until an `auth` succeeds.
 (3) The session this connection authenticated with is revoked: the `session.revoked` event with
-`current: true` is delivered on the `account` channel first, and the connection is then no
-longer authenticated, as in (2). A revocation of another session of the same account
+`current: true` is delivered on the `account` channel first, then `signed_out` with reason
+`revoked`, and the connection is no longer authenticated, as in (2). Treat the pair as one
+sign-out: the second frame of it changes nothing. A revocation of another session of the same account
 (`current: false`) changes nothing. Public subscriptions are never affected. After (1),
 re-subscribe the private channels you need; after (2) or (3), authenticate and then
 re-subscribe. An `UNAUTHENTICATED` error carrying a subscribe request's id is a refused
@@ -116,7 +117,7 @@ not close the socket.
 - `auth.token`: Session access token. Never put credentials in the URL.
 - `pong`: Reply to a client ping (echoes its id), or an unsolicited server pong every 30 s (no id).
 - `authenticated`: Acknowledges a successful `auth` request; echoes its id. `user_id` is always present.
-- `subscribed`: Sent only when at least one channel was added; echoes the request id.
+- `subscribed`: Echoes the request id and lists every channel the request now holds, including ones already held. Not sent when every channel in the request was refused.
 - `error.code`: Same vocabulary as REST error.code (errors.yaml). Echoes the request id when caused by a request. CONCURRENT_MODIFICATION with a null id means this socket read too slowly and the server dropped events for one of its topics (the message says how many); the connection and subscriptions stay open. It names no channel: fetch fresh snapshots of everything you keep.
 - Event `type`: Ignore unknown event types (additive changes do not bump protocol_version).
 - Event `sequence`: Public channels: per channel, +1 per update, resets on server restart. Private channels: per topic (see the description above). balances.resync has none.
