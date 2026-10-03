@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarise how the served public spec differs from what is committed.
+"""Summarise how the served public spec and AsyncAPI document differ from what is committed.
 
     python tools/drift_report.py            # fetch fresh, rebuild in memory, print Markdown
 Exit code: 0 = no drift, 3 = drift (Markdown on stdout), 1 = error.
@@ -51,12 +51,17 @@ def main() -> int:
     # the SDK spec itself did not change (the allowlist hides them from it).
     undecided = [(m, p) for m, p in unlisted if not denied(p)]
 
-    if new_sdk == old_sdk and (new_errors is None or new_errors == old_errors) and not undecided:
+    new_async = build.render_asyncapi(build.fetch_asyncapi(force=True))
+    old_async = build.ASYNC_OUT.read_text()
+    async_drift = new_async != old_async
+
+    if new_sdk == old_sdk and (new_errors is None or new_errors == old_errors) and not undecided \
+            and not async_drift:
         print("no drift")
         return 0
 
-    lines = ["The served public spec (`https://api.cexy.io/api/v1/openapi.json`) no longer matches the "
-             "committed SDK spec. Run `python tools/build.py --fetch`, review, and open a PR (with the "
+    lines = ["The served public spec (`https://api.cexy.io/api/v1/openapi.json`) or AsyncAPI document "
+             "(`https://api.cexy.io/api/v1/asyncapi.json`) no longer matches the committed SDK spec. Run `python tools/build.py --fetch`, review, and open a PR (with the "
              "SDK sync PRs in the same round).", ""]
     added, removed = ops(new_sdk) - ops(old_sdk), ops(old_sdk) - ops(new_sdk)
     lines.append(f"- **SDK operations:** +{len(added)} / -{len(removed)}")
@@ -73,6 +78,18 @@ def main() -> int:
     info_old, info_new = old_sdk.get("info", {}).get("version"), new_sdk.get("info", {}).get("version")
     if info_old != info_new:
         lines.append(f"- **info.version:** {info_old} → {info_new}")
+
+    if async_drift:
+        oa, na = yaml.safe_load(old_async), yaml.safe_load(new_async)
+        for part, get in (("channels", lambda d: d.get("channels", {})),
+                          ("messages", lambda d: d.get("components", {}).get("messages", {})),
+                          ("WebSocket schemas", lambda d: d.get("components", {}).get("schemas", {}))):
+            o, n = get(oa), get(na)
+            ch = sorted(k for k in set(o) & set(n) if o[k] != n[k])
+            lines.append(f"- **asyncapi.yaml {part}:** +{sorted(set(n) - set(o))} / -{sorted(set(o) - set(n))}; "
+                         f"changed: {ch[:20]}{' …' if len(ch) > 20 else ''}")
+        if oa.get("info", {}).get("description") != na.get("info", {}).get("description"):
+            lines.append("- **asyncapi.yaml info.description** changed: check ws-client-rules.md")
 
     if undecided:
         lines.append(f"- **API-key operations neither allowlisted nor denied (decide: add to surface.yaml or "

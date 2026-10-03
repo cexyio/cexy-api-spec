@@ -13,8 +13,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with: {python-version: "3.12"}
       - run: pip install pyyaml==6.0.2
-      - name: Fetch the served public spec (not committed)
-        run: python tools/build.py --fetch && git diff --exit-code spec/openapi.sdk.json errors.yaml
+      - name: Fetch the served public specs (not committed)
+        run: python tools/build.py --fetch && git diff --exit-code spec/openapi.sdk.json errors.yaml asyncapi.yaml
       - name: Surface guard (fail closed)
         run: python tools/check.py
       - name: Signing vectors match the documented scheme
