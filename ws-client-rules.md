@@ -91,6 +91,23 @@ the REST lists for those states. The balance change itself arrives on `balances`
 server update adds those changes (one publisher per topic) and the `deposits.resync` /
 `withdrawals.resync` events (data `{}`, no frame sequence), meaning "refetch that list".
 
+Order closes. An order can end without executing in full, and the `orders` channel then sends
+`order.updated` (status `rejected`) or `order.cancelled`, with `status_reason` saying why (free
+text; new reasons may appear, so display it rather than parse it). Some of these the exchange
+closes on its own; others are ordinary outcomes of the order itself (a post-only order that
+would have crossed, a fill-or-kill that could not fill, an IOC or market order that ran out of
+liquidity, a self-trade block). A reason other than `Cancelled by the account holder` does not
+by itself mean the exchange closed the order. A placement can answer 2xx with status `rejected`
+or `cancelled`: that answer is final, fills in it stand, and the order must not be placed again
+automatically. A triggered stop has no HTTP answer, so the `orders` channel (or a refetch) is
+the only place its outcome appears; once triggered it carries its triggered `type` (`market` or
+`limit`), so recognise it by `triggered_at` or `stop_price`. The server sends each close at
+most once (a frame can be lost if the server fails just after the close), and a client can see
+the same close several times: in the HTTP answer to its own request, on the `orders` channel,
+and in a REST refetch after a gap or a reconnect. Act on a close once per (order id, status); a
+later frame with a different status for the same order id is a new event. A notification of
+kind `order_closed` may also arrive for some closes.
+
 Server sign-out. `{"type":"signed_out","reason":...}` (no id,
 channel or sequence) is sent when this connection's access token expired more than 30 s ago
 without a new `auth`, or when a periodic check finds its session revoked. Private
