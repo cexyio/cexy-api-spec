@@ -58,6 +58,7 @@ operations:
   - {method: POST, path: /api/v1/trading/orders, auth: api_key, scope: trade}
   - {method: DELETE, path: "/api/v1/trading/orders/{order_id}", auth: api_key, scope: trade}
   - {method: POST, path: /api/v1/trading/orders/cancel-all, auth: api_key, scope: trade}
+  - {method: POST, path: /api/v1/trading/orders/cancel-all-after, auth: api_key, scope: trade}
 
   # Liquidity pools (trade). In the SDKs; never in the MCP server.
   - {method: POST, path: "/api/v1/pools/{symbol}/join", auth: api_key, scope: trade}
