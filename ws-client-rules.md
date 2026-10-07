@@ -108,6 +108,17 @@ and in a REST refetch after a gap or a reconnect. Act on a close once per (order
 later frame with a different status for the same order id is a new event. A notification of
 kind `order_closed` may also arrive for some closes.
 
+Order retries. `client_order_id` identifies the intent to place one order. After a timeout or a
+lost answer, retry with the same `client_order_id`, or look it up with
+`GET /api/v1/trading/orders/by-client-id/{client_order_id}`. A placement whose
+`client_order_id` was already used is answered 409 `ALREADY_EXISTS` before any market, body or
+funds check, even when the market has since paused or the retry's body differs. Its `details`
+carry the existing order's `order_id` and `status`. Treat that answer as the outcome of the
+original placement: resolve the order by its client id (or the `order_id` in `details`) and
+act on it once, as for any close above. Never place it again automatically under a new
+`client_order_id`; a new id means a new order. Fills on the `orders` channel
+(`order.filled`) carry `fee_asset`, the asset `fee` is in (always the market's quote asset).
+
 Server sign-out. `{"type":"signed_out","reason":...}` (no id,
 channel or sequence) is sent when this connection's access token expired more than 30 s ago
 without a new `auth`, or when a periodic check finds its session revoked. Private
