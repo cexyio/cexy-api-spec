@@ -50,9 +50,12 @@ describes the scheme.
 
 ## Rate limits
 
-- Anonymous: 120 requests/min per IP.
-- API key: 600/min per key (after the key-auth release).
+- Anonymous: 120 requests a minute per IP (an IPv6 address counts by its /64). Unsigned requests, public market data included, always share this ceiling, whoever sends them.
+- API key: 600 a minute per key. A signed request with a valid key is served even when its IP's anonymous ceiling is full; it answers only to its key's own bucket and to the IP's key-attempt limit (failed key verifications, 120 a minute).
+- A key over its own limit gets `429` before its signature is checked, and that refusal counts as a failed key attempt from its IP. A client that keeps sending through it can lock every other key on that IP out for the rest of the minute.
+- **Honour `Retry-After`.** A `429` carries `Retry-After` and `details.retry_after_seconds`; wait at least the longer of the two before sending anything else from that client, not only the retried request. SDKs hold the whole client for the wait and give up at once on a wait above 120 s.
 - `X-RateLimit-Reset` is in seconds until the window resets.
+- Market makers: run the cancel/risk key from its own egress IP if it must stay usable while a quoting bot misbehaves. A separate key on the same IP is not enough, because the key-attempt limit is per IP.
 
 ## Versioning
 
