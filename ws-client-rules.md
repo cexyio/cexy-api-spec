@@ -19,8 +19,9 @@ Client rules (all are required for a correct client):
   A sequence gap marks the book stale until the next update. Sequences reset when the
   server restarts: take a fresh snapshot after every reconnect. Never merge REST levels
   deeper than 50 into WebSocket state.
-- `CONCURRENT_MODIFICATION` error frames (null id, no channel) mean messages were
-  dropped: resynchronise all books and channels.
+- `CONCURRENT_MODIFICATION` error frames (null id) mean messages were dropped:
+  resynchronise all books and channels. The optional `channel` names the channel that fell
+  behind; resynchronising everything stays correct.
 - Limits: 240 client messages per minute (fixed window, pings count; exceeding it closes
   the socket), 100 subscriptions (extra channels in a batch are refused without closing),
   64 KiB per message, channel names up to 64 characters, text frames only.
@@ -146,7 +147,8 @@ not close the socket.
 - `pong`: Reply to a client ping (echoes its id), or an unsolicited server pong every 30 s (no id).
 - `authenticated`: Acknowledges a successful `auth` request; echoes its id. `user_id` is always present.
 - `subscribed`: Echoes the request id and lists every channel the request now holds, including ones already held. Not sent when every channel in the request was refused.
-- `error.code`: Same vocabulary as REST error.code (errors.yaml). Echoes the request id when caused by a request. CONCURRENT_MODIFICATION with a null id means this socket read too slowly and the server dropped events for one of its topics (the message says how many); the connection and subscriptions stay open. It names no channel: fetch fresh snapshots of everything you keep.
+- `error.code`: Same vocabulary as REST error.code (errors.yaml). Echoes the request id when caused by a request. CONCURRENT_MODIFICATION with a null id means this socket read too slowly and the server dropped events for one of its topics (the message says how many); the connection and subscriptions stay open. It may name the channel that fell behind (`channel`); fetching fresh snapshots of everything you keep stays correct.
+- `error.channel`, `error.details`: Optional. `channel` is the channel a refusal concerns (one error per refused channel, in request order, then one `subscribed` ack for the rest). `details.retry_after_seconds`, when present, says when to retry that channel. Ignore other unknown fields.
 - Event `type`: Ignore unknown event types (additive changes do not bump protocol_version).
 - Event `sequence`: Public channels: per channel, +1 per update, resets on server restart. Private channels: per topic (see the description above). balances.resync has none.
 - Event `data`: Amounts are decimal strings. orderbook.update data is {symbol, full: true, bids, asks}: always the complete top 50 of both sides, replacing the previous state (there are no deltas).
